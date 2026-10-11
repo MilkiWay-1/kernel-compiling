@@ -76,6 +76,7 @@ jobs:
 
           echo "=== Namespace configuration ==="
           grep -E '^(CONFIG_NAMESPACES|CONFIG_IPC_NS|CONFIG_NET_NS|CONFIG_CGROUPS)=' .config || true
+          
       - name: Configurar Kernel
         working-directory: kernel
         run: |
