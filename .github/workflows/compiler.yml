@@ -29,30 +29,39 @@ jobs:
           cd kernel
           git submodule update --init --recursive
 
-      - name: Baixar Toolchain
+      - name: Baixar e Inspecionar Toolchain
         run: |
           git clone --depth 1 \
+            --branch proton_clang_13 \
             https://github.com/Chatur27/Toolchains-for-Eureka \
             toolchain
 
-          echo "Arquivos encontrados na toolchain:"
-          find toolchain -maxdepth 4 -type f \
-            \( -name clang \
-            -o -name aarch64-linux-gnu-gcc \
-            -o -name aarch64-linux-gnu-ld \
-            -o -name arm-linux-gnueabi-gcc \) -print
+          echo "=== Toolchain directory ==="
+          ls -la toolchain/
+          echo "=== bin directory ==="
+          ls -la toolchain/bin/ || true
+
+          echo "=== Searching for Clang ==="
+          find toolchain \( -type f -o -type l \) \
+            \( -name clang -o -name 'clang-[0-9]*' \
+            -o -name 'clang++' \) -print
+
+          echo "=== Checking linker ==="
+          ls -l toolchain/bin/aarch64-linux-gnu-ld || true
 
           CLANG="$(find "$GITHUB_WORKSPACE/toolchain" \
-            -type f -name clang -executable -print -quit)"
+            \( -type f -o -type l \) \
+            -name clang -executable -print -quit)"
 
           if [ -z "$CLANG" ]; then
-            echo "::error::Clang não encontrado na toolchain."
+            echo "::error::No executable named clang was found."
+            echo "Inspect the directory listings above."
             exit 1
           fi
 
+          echo "Found Clang at: $CLANG"
           echo "CLANG=$CLANG" >> "$GITHUB_ENV"
-          echo "Clang encontrado: $CLANG"
-
+          
       - name: Preparar Configuração
         run: |
           DEFCONFIG="kernel/arch/arm64/configs/exynos7885-a30s_defconfig"
