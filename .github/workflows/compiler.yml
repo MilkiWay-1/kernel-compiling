@@ -1,7 +1,7 @@
 name: Compilador Automatizado Eureka Kernel A30s
 
 on:
-  workflow_dispatch: # Permite ativar a compilação clicando no botão manual
+  workflow_dispatch:
 
 jobs:
   build-kernel:
@@ -22,9 +22,9 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/Chatur27/Toolchains-for-Eureka toolchain
 
-      - name: Injetar Flags do Droidspaces no Defconfig
+      - name: Ajustar Configuração do Kernel para Build Estável
         run: |
-          cat << EOF >> kernel/arch/arm64/configs/exynos7885-a30s_defconfig
+          cat << 'EOF' >> kernel/arch/arm64/configs/exynos7885-a30s_defconfig
 
           # Ativar suporte ao Droidspaces
           CONFIG_NAMESPACES=y
@@ -32,17 +32,28 @@ jobs:
           CONFIG_NET_NS=y
           CONFIG_CGROUPS=y
           CONFIG_KERNELSU=n
+
+          # Desabilitar driver que depende de arquivo ausente no repositório
+          CONFIG_TZDEV=n
           EOF
+
+          if [ -f kernel/drivers/thermal/thermal_core.c ]; then
+            sed -i 's|#include <\.\./base/base.h>|#include "../base/base.h"|' kernel/drivers/thermal/thermal_core.c
+          fi
+
+          sudo chmod -R 755 /root/build/install/aarch64-linux-gnu/lib 2>/dev/null || true
 
       - name: Compilar o Kernel na Nuvem
         run: |
           cd kernel
           export PATH="$GITHUB_WORKSPACE/toolchain/bin:$PATH"
           make ARCH=arm64 CROSS_COMPILE=$GITHUB_WORKSPACE/toolchain/bin/aarch64-linux-gnu- CROSS_COMPILE_ARM32=$GITHUB_WORKSPACE/toolchain/bin/arm-linux-gnueabi- CC=clang HOSTCC=gcc exynos7885-a30s_defconfig
-          make -j$(nproc --all) ARCH=arm64 CROSS_COMPILE=$GITHUB_WORKSPACE/toolchain/bin/aarch64-linux-gnu- CROSS_COMPILE_ARM32=$GITHUB_WORKSPACE/toolchain/bin/arm-linux-gnueabi- CC=clang HOSTCC=gcc Image.gz-dtb
+          make olddefconfig
+          make -j$(nproc --all) ARCH=arm64 CROSS_COMPILE=$GITHUB_WORKSPACE/toolchain/bin/aarch64-linux-gnu- CROSS_COMPILE_ARM32=$GITHUB_WORKSPACE/toolchain/bin/arm-linux-gnueabi- CC=clang HOSTCC=gcc
 
       - name: Upload do Arquivo Pronto
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-Eureka-A30s-Droidspaces
+          path: kernel/arch/arm64/boot/Image.gz-dtb
           path: kernel/arch/arm64/boot/Image.gz-dtb
