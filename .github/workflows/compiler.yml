@@ -1,4 +1,3 @@
-
 name: Compilador Automatizado Eureka Kernel A30s
 
 'on':
@@ -44,10 +43,7 @@ jobs:
           echo "=== Searching for Clang ==="
           find toolchain \( -type f -o -type l \) \
             \( -name clang -o -name 'clang-[0-9]*' \
-            -o -name 'clang++' \) -print
-
-          echo "=== Checking linker ==="
-          ls -l toolchain/bin/aarch64-linux-gnu-ld || true
+            -o -name clang++ \) -print
 
           CLANG="$(find "$GITHUB_WORKSPACE/toolchain" \
             \( -type f -o -type l \) \
@@ -55,39 +51,27 @@ jobs:
 
           if [ -z "$CLANG" ]; then
             echo "::error::No executable named clang was found."
-            echo "Inspect the directory listings above."
             exit 1
           fi
 
           echo "Found Clang at: $CLANG"
           echo "CLANG=$CLANG" >> "$GITHUB_ENV"
-          
-          - name: Preparar Configuração
-        working-directory: kernel
-        run: |
-          make ARCH=arm64 exynos7885-a30s_defconfig
+          echo "$GITHUB_WORKSPACE/toolchain/bin" >> "$GITHUB_PATH"
 
-          scripts/config --enable NAMESPACES
-          scripts/config --enable IPC_NS
-          scripts/config --enable NET_NS
-          scripts/config --enable CGROUPS
-
-          make ARCH=arm64 olddefconfig
-
-          echo "=== Namespace configuration ==="
-          grep -E '^(CONFIG_NAMESPACES|CONFIG_IPC_NS|CONFIG_NET_NS|CONFIG_CGROUPS)=' .config || true
-          
       - name: Configurar Kernel
         working-directory: kernel
         run: |
-          export PATH="$(dirname "$CLANG"):$PATH"
-
           make ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             CC="$CLANG" \
             HOSTCC=gcc \
             exynos7885-a30s_defconfig
+
+          scripts/config --enable NAMESPACES
+          scripts/config --enable IPC_NS
+          scripts/config --enable NET_NS
+          scripts/config --enable CGROUPS
 
           make ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -96,12 +80,12 @@ jobs:
             HOSTCC=gcc \
             olddefconfig
 
-          echo "Verificando configuração gerada:"
+          echo "=== Namespace configuration ==="
           grep -E '^(CONFIG_NAMESPACES|CONFIG_IPC_NS|CONFIG_NET_NS|CONFIG_CGROUPS)=' .config || true
 
           for option in CONFIG_NAMESPACES CONFIG_IPC_NS CONFIG_NET_NS CONFIG_CGROUPS; do
             if ! grep -qx "${option}=y" .config; then
-              echo "::error::$option não está habilitado na configuração final."
+              echo "::error::$option is not enabled in the final configuration."
               exit 1
             fi
           done
@@ -109,8 +93,6 @@ jobs:
       - name: Compilar Kernel
         working-directory: kernel
         run: |
-          export PATH="$(dirname "$CLANG"):$PATH"
-
           make -j"$(nproc)" \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -126,7 +108,7 @@ jobs:
           IMAGE="kernel/arch/arm64/boot/Image.gz-dtb"
 
           if [ ! -s "$IMAGE" ]; then
-            echo "::error::A imagem Image.gz-dtb não foi encontrada."
+            echo "::error::Image.gz-dtb was not found."
             exit 1
           fi
 
