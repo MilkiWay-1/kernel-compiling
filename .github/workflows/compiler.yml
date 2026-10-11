@@ -130,4 +130,3 @@ jobs:
           name: Kernel-Eureka-A30s-Droidspaces
           path: kernel/arch/arm64/boot/Image.gz-dtb
           if-no-files-found: error
-```
