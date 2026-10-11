@@ -1,7 +1,7 @@
 ```yaml
 name: Compilador Automatizado Eureka Kernel A30s
 
-on:
+'on':
   workflow_dispatch:
 
 permissions:
@@ -35,92 +35,94 @@ jobs:
             https://github.com/Chatur27/Toolchains-for-Eureka \
             toolchain
 
-          echo "Toolchain executables:"
-          find toolchain -maxdepth 3 -type f \
-            \( -name clang -o -name aarch64-linux-gnu-gcc \
+          echo "Arquivos encontrados na toolchain:"
+          find toolchain -maxdepth 4 -type f \
+            \( -name clang \
+            -o -name aarch64-linux-gnu-gcc \
             -o -name aarch64-linux-gnu-ld \
             -o -name arm-linux-gnueabi-gcc \) -print
 
-          test -x toolchain/bin/clang || {
-            echo "::error::Clang not found at toolchain/bin/clang"
-            exit 1
-          }
+          CLANG="$(find "$GITHUB_WORKSPACE/toolchain" \
+            -type f -name clang -executable -print -quit)"
 
-          test -x toolchain/bin/aarch64-linux-gnu-ld || {
-            echo "::error::AArch64 linker not found"
+          if [ -z "$CLANG" ]; then
+            echo "::error::Clang não encontrado na toolchain."
             exit 1
-          }
+          fi
+
+          echo "CLANG=$CLANG" >> "$GITHUB_ENV"
+          echo "Clang encontrado: $CLANG"
 
       - name: Preparar Configuração
         run: |
           DEFCONFIG="kernel/arch/arm64/configs/exynos7885-a30s_defconfig"
-          test -f "$DEFCONFIG" || {
-            echo "::error::A30s defconfig not found"
+
+          if [ ! -f "$DEFCONFIG" ]; then
+            echo "::error::Defconfig do A30s não encontrado."
             exit 1
-          }
+          fi
 
           cat >> "$DEFCONFIG" <<'EOF'
 
-          # Droidspaces: requested namespace and cgroup options
+          # Opções solicitadas para Droidspaces
           CONFIG_NAMESPACES=y
           CONFIG_IPC_NS=y
           CONFIG_NET_NS=y
           CONFIG_CGROUPS=y
-          # KernelSU is not injected by this workflow.
           EOF
 
       - name: Configurar Kernel
         working-directory: kernel
-        env:
-          TOOLCHAIN: ${{ github.workspace }}/toolchain/bin
         run: |
-          export PATH="$TOOLCHAIN:$PATH"
+          export PATH="$(dirname "$CLANG"):$PATH"
 
           make ARCH=arm64 \
-            CROSS_COMPILE="$TOOLCHAIN/aarch64-linux-gnu-" \
-            CROSS_COMPILE_ARM32="$TOOLCHAIN/arm-linux-gnueabi-" \
-            CC="$TOOLCHAIN/clang" \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC="$CLANG" \
             HOSTCC=gcc \
             exynos7885-a30s_defconfig
 
           make ARCH=arm64 \
-            CROSS_COMPILE="$TOOLCHAIN/aarch64-linux-gnu-" \
-            CROSS_COMPILE_ARM32="$TOOLCHAIN/arm-linux-gnueabi-" \
-            CC="$TOOLCHAIN/clang" \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC="$CLANG" \
             HOSTCC=gcc \
             olddefconfig
 
-          echo "Checking generated configuration:"
+          echo "Verificando configuração gerada:"
           grep -E '^(CONFIG_NAMESPACES|CONFIG_IPC_NS|CONFIG_NET_NS|CONFIG_CGROUPS)=' .config || true
 
-          grep -qx 'CONFIG_NAMESPACES=y' .config
-          grep -qx 'CONFIG_IPC_NS=y' .config
-          grep -qx 'CONFIG_NET_NS=y' .config
-          grep -qx 'CONFIG_CGROUPS=y' .config
+          for option in CONFIG_NAMESPACES CONFIG_IPC_NS CONFIG_NET_NS CONFIG_CGROUPS; do
+            if ! grep -qx "${option}=y" .config; then
+              echo "::error::$option não está habilitado na configuração final."
+              exit 1
+            fi
+          done
 
       - name: Compilar Kernel
         working-directory: kernel
-        env:
-          TOOLCHAIN: ${{ github.workspace }}/toolchain/bin
         run: |
-          export PATH="$TOOLCHAIN:$PATH"
+          export PATH="$(dirname "$CLANG"):$PATH"
 
           make -j"$(nproc)" \
             ARCH=arm64 \
-            CROSS_COMPILE="$TOOLCHAIN/aarch64-linux-gnu-" \
-            CROSS_COMPILE_ARM32="$TOOLCHAIN/arm-linux-gnueabi-" \
-            CC="$TOOLCHAIN/clang" \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC="$CLANG" \
             HOSTCC=gcc
 
       - name: Verificar Imagem
         run: |
+          echo "Arquivos produzidos:"
           find kernel/arch/arm64/boot -maxdepth 2 -type f -print
 
           IMAGE="kernel/arch/arm64/boot/Image.gz-dtb"
-          test -s "$IMAGE" || {
-            echo "::error::Expected Image.gz-dtb was not produced"
+
+          if [ ! -s "$IMAGE" ]; then
+            echo "::error::A imagem Image.gz-dtb não foi encontrada."
             exit 1
-          }
+          fi
 
       - name: Upload do Arquivo
         uses: actions/upload-artifact@v4
