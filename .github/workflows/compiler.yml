@@ -69,6 +69,7 @@ jobs:
             exynos7885-a30s_defconfig
 
           scripts/config --enable NAMESPACES
+          scripts/config --enable SYSVIPC
           scripts/config --enable IPC_NS
           scripts/config --enable NET_NS
           scripts/config --enable CGROUPS
