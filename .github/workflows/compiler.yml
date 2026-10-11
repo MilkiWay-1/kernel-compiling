@@ -62,24 +62,20 @@ jobs:
           echo "Found Clang at: $CLANG"
           echo "CLANG=$CLANG" >> "$GITHUB_ENV"
           
-      - name: Preparar Configuração
+          - name: Preparar Configuração
+        working-directory: kernel
         run: |
-          DEFCONFIG="kernel/arch/arm64/configs/exynos7885-a30s_defconfig"
+          make ARCH=arm64 exynos7885-a30s_defconfig
 
-          if [ ! -f "$DEFCONFIG" ]; then
-            echo "::error::Defconfig do A30s não encontrado."
-            exit 1
-          fi
+          scripts/config --enable NAMESPACES
+          scripts/config --enable IPC_NS
+          scripts/config --enable NET_NS
+          scripts/config --enable CGROUPS
 
-          cat >> "$DEFCONFIG" <<'EOF'
+          make ARCH=arm64 olddefconfig
 
-          # Opções solicitadas para Droidspaces
-          CONFIG_NAMESPACES=y
-          CONFIG_IPC_NS=y
-          CONFIG_NET_NS=y
-          CONFIG_CGROUPS=y
-          EOF
-
+          echo "=== Namespace configuration ==="
+          grep -E '^(CONFIG_NAMESPACES|CONFIG_IPC_NS|CONFIG_NET_NS|CONFIG_CGROUPS)=' .config || true
       - name: Configurar Kernel
         working-directory: kernel
         run: |
