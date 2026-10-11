@@ -14,7 +14,7 @@ jobs:
 
       - name: Baixar Código Fonte do Eureka Kernel
         run: |
-          git clone --depth 1 https://github.com/Chatur27/Eureka-Kernel-Exynos7885-Q-R-S.git kernel
+          git clone --depth 1 https://github.com/Chatur27/Toolchains-for-Eureka kernel
           cd kernel
           git submodule update --init --recursive
 
