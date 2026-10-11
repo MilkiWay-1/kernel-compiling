@@ -90,17 +90,39 @@ jobs:
               exit 1
             fi
           done
-
       - name: Compilar Kernel
         working-directory: kernel
+        continue-on-error: true
         run: |
+          set -o pipefail
+
           make -j"$(nproc)" \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             CC="$CLANG" \
-            HOSTCC=gcc
+            HOSTCC=gcc 2>&1 | tee build.log
 
+      - name: Extract Build Errors
+        if: always()
+        working-directory: kernel
+        run: |
+          echo "=== Compiler and linker errors ==="
+          grep -inE \
+            '(^|[[:space:]])(fatal )?error:|undefined reference|No such file|not found|Error [0-9]+|make: \*\*\*' \
+            build.log | tail -100 || true
+
+          echo "=== Last 100 lines ==="
+          tail -100 build.log || true
+
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eureka-Kernel-Build-Log
+          path: kernel/build.log
+          if-no-files-found: warn
+    
       - name: Verificar Imagem
         run: |
           echo "Arquivos produzidos:"
