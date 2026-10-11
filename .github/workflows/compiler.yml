@@ -1,7 +1,7 @@
 name: Compilador Automatizado Eureka Kernel A30s
 
 on:
-  workflow_dispatch: # Permite ativar a compilação clicando em um botão
+  workflow_dispatch: # Permite ativar a compilação clicando no botão manual
 
 jobs:
   build-kernel:
@@ -12,9 +12,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev libelf-dev bison flex lld-14 clang-14
 
-      - name: Baixar Código Fonte do Eureka Kernel
+      - name: Baixar Código Fonte Oficial do Eureka Kernel
         run: |
-          git clone --depth 1 https://github.com/Chatur27/Toolchains-for-Eureka kernel
+          git clone --depth 1 https://github.com/eurekadevelopment/Eureka-Kernel kernel
           cd kernel
           git submodule update --init --recursive
 
@@ -25,6 +25,8 @@ jobs:
       - name: Injetar Flags do Droidspaces no Defconfig
         run: |
           cat << EOF >> kernel/arch/arm64/configs/exynos7885-a30s_defconfig
+
+          # Ativar suporte ao Droidspaces
           CONFIG_NAMESPACES=y
           CONFIG_IPC_NS=y
           CONFIG_NET_NS=y
@@ -36,8 +38,8 @@ jobs:
         run: |
           cd kernel
           export PATH="$GITHUB_WORKSPACE/toolchain/bin:$PATH"
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CC=clang HOSTCC=gcc exynos7885-a30s_defconfig
-          make -j$(nproc --all) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CC=clang HOSTCC=gcc Image.gz-dtb
+          make ARCH=arm64 CROSS_COMPILE=$GITHUB_WORKSPACE/toolchain/bin/aarch64-linux-gnu- CROSS_COMPILE_ARM32=$GITHUB_WORKSPACE/toolchain/bin/arm-linux-gnueabi- CC=clang HOSTCC=gcc exynos7885-a30s_defconfig
+          make -j$(nproc --all) ARCH=arm64 CROSS_COMPILE=$GITHUB_WORKSPACE/toolchain/bin/aarch64-linux-gnu- CROSS_COMPILE_ARM32=$GITHUB_WORKSPACE/toolchain/bin/arm-linux-gnueabi- CC=clang HOSTCC=gcc Image.gz-dtb
 
       - name: Upload do Arquivo Pronto
         uses: actions/upload-artifact@v4
